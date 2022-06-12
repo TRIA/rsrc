@@ -560,7 +560,7 @@ void vRsrcPrintResInHexHelper (rsrcPoolP_t pxPool, void *pvRsrcPayload)
 			logPrintf (LL_LOG_RSRC, "%08x ", pi[i]);
 		}
 		for (int i = 0; i < (numtoprint*(sizeof (int))); i++) {
-			c = (*pi >> (24 - i*4)) & 0xff;
+			c = (*pi >> (24 - i*8)) & 0xff;
 			if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
 				(c >= '0' && c <= '9')) {
 				logPrintf(LL_LOG_RSRC, "%c", c);

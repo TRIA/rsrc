@@ -6,6 +6,7 @@
 //
 
 #include <stdio.h>
+#include <assert.h>
 #include "rsrc.h"
 
 rsrcPoolP_t p1, p2, p3, p4;
@@ -22,19 +23,22 @@ void OOMstub(rsrcPoolP_t pool, int amount)
 	return; // any return at all says to just continue instead of abort
 }
 
+int classID_RFU = 0;
+
 int main(int argc, const char * argv[]) {
-	p1 = pxRsrcNewPool ("p1", 1, 1, 1, 0); // byte size
-	
-	p2 = pxRsrcNewPool ("p2", 8, 100, 100, 0); // 8 bytes
-	
-	p3 = pxRsrcNewVarPool("vp3", 50);
+	p1 = pxRsrcNewPool ("bytepool", 1, 1, 1, 0); // one byte per alloc, 1 init, 1 inc
+	assert(p1);
+	p2 = pxRsrcNewPool ("longpool", 8, 0, 100, 0); // 8 bytes per, 0 init, 100 inc
+	assert(p2);
+	p3 = pxRsrcNewVarPool("varpool", 50);
+	assert(p3);
 	
 	printf ("\nShort p1 alone (no allocations done yet):\n");
 	vRsrcPrintShort (p1);
 	printf ("\nShort all p*:\n");
 	vRsrcPrintShort (NULL);
 	
-	printf ("\nLong all p* (still no allocations):\n");
+	printf ("\nLong all p* (no allocations):\n");
 	vRsrcPrintLong(NULL);
 	
 	vRsrcSetPrintHelper (p1, vRsrcPrintResInHexHelper);
