@@ -21,7 +21,7 @@ Note that pxRsrcNewVarPool and pxRsrcNewDynPool are simply convenience functions
 Allocating from a Pool:
 
 - resource handle = pxRsrcAlloc (pool handle to , tracking name string), allocates a resource from any type pf Pool except a Variable pool (since the length of a resource is not known in that case)
-- resource handle = pxRsrcAlloc (pool handle to Var Pool, tracking name string, resource size), allocates a resource of the specified size from the Pool
+- resource handle = pxRsrcVarAlloc (pool handle to Var Pool, tracking name string, resource size), allocates a resource of the specified size from the Pool
 
 Miscellanous:
 
