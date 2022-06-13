@@ -8,6 +8,26 @@ When writing code using malloc/free, keeping track of heap usage and the objects
 - Provide for pools of dynamically allocated fixed or variable-length resources, allocated from the heap as needed, tracked and managed, then given back to the heap when done.
 
 Complete API information is included in the source code using doxygen conventions.  This version has been adapted to use FreeRTOS naming conventions, but should compile and run on any POSIX-ish system with a modern C compiler.
+### Key APIs
+Creating Pools:
+
+- pool handle = pxRsrcNewPool (pool name, size of each resource, initial allocation, incremental allocation, max number of resources), when either initial or incremental allocation is >1, used to create static Pools that have permanently allocated resources that are kept in a freelist when not in use
+- pool handle = pxRsrcNewVarPool (pool name, maximum number of resources it can contain), creates a Pool that contains variable-length resources, with the length specified on each allocation, and has no freelist
+- pool handle = pxRsrcNewDynPool (pool name, size of each resource, max number of resources), creates a Pool that dynamically allocates resources from the heap when needed, and returns them to the heap when freed
+
+
+Note that pxRsrcNewVarPool and pxRsrcNewDynPool are simply convenience functions over pxRsrcNewPool with specific argument values.
+
+Allocating from a Pool:
+
+- resource handle = pxRsrcAlloc (pool handle to , tracking name string), allocates a resource from any type pf Pool except a Variable pool (since the length of a resource is not known in that case)
+- resource handle = pxRsrcAlloc (pool handle to Var Pool, tracking name string, resource size), allocates a resource of the specified size from the Pool
+
+Miscellanous:
+
+- vRsrcRenameRsrc (resouce handle, new target name string to associate with the resource)
+- vRsrcPrintShort (pool handle or NULL), print a summary of usage statistics for the pool, or all pools if NULL
+- vRsrcPrintLong (pool handle or NULL), same as PrintShort, but also prints a summary of each resource in the specified Pool(s))
 
 ### Simple Example:
 
