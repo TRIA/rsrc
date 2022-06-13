@@ -1,4 +1,4 @@
-### Overview of 'rsrc'
+## Overview of 'rsrc'
 Resource object manager overlay for malloc/free
 
 When writing code using malloc/free, keeping track of heap usage and the objects stored there can be a hassle.  Figuring out where the memory is going and what each is being used for is often object-specific and tedious, and finding memory leaks can be hard.  This is an overlay to malloc/free that provides a base set of services that
@@ -11,26 +11,25 @@ Complete API information is included in the source code using doxygen convention
 ### Key APIs
 Creating Pools:
 
-- pool handle = pxRsrcNewPool (pool name, size of each resource, initial allocation, incremental allocation, max number of resources), when either initial or incremental allocation is >1, used to create static Pools that have permanently allocated resources that are kept in a freelist when not in use
-- pool handle = pxRsrcNewVarPool (pool name, maximum number of resources it can contain), creates a Pool that contains variable-length resources, with the length specified on each allocation, and has no freelist
-- pool handle = pxRsrcNewDynPool (pool name, size of each resource, max number of resources), creates a Pool that dynamically allocates resources from the heap when needed, and returns them to the heap when freed
+- **pool handle = pxRsrcNewPool (pool name, size of each resource, initial allocation, incremental allocation, max number of resources)**, when either initial or incremental allocation is >1, used to create static Pools that have permanently allocated resources that are kept in a freelist when not in use
+- **pool handle = pxRsrcNewVarPool (pool name, maximum number of resources it can contain)**, creates a Pool that contains variable-length resources, with the length specified on each allocation, and has no freelist
+- **pool handle = pxRsrcNewDynPool (pool name, size of each resource, max number of resources)**, creates a Pool that dynamically allocates resources from the heap when needed, and returns them to the heap when freed
 
 
 Note that pxRsrcNewVarPool and pxRsrcNewDynPool are simply convenience functions over pxRsrcNewPool with specific argument values.
 
 Allocating from a Pool:
 
-- resource handle = pxRsrcAlloc (pool handle to , tracking name string), allocates a resource from any type pf Pool except a Variable pool (since the length of a resource is not known in that case)
-- resource handle = pxRsrcVarAlloc (pool handle to Var Pool, tracking name string, resource size), allocates a resource of the specified size from the Pool
+- **resource handle = pxRsrcAlloc (pool handle to , tracking name string)**, allocates a resource from any type of Pool except a Variable pool (since the length of a resource is not known in that case)
+- **resource handle = pxRsrcVarAlloc (pool handle to Var Pool, tracking name string, resource size)**, allocates a resource of the specified size from the Pool
 
 Miscellanous:
 
-- vRsrcRenameRsrc (resouce handle, new target name string to associate with the resource)
-- vRsrcPrintShort (pool handle or NULL), print a summary of usage statistics for the pool, or all pools if NULL
-- vRsrcPrintLong (pool handle or NULL), same as PrintShort, but also prints a summary of each resource in the specified Pool(s))
+- **vRsrcRenameRsrc (resource handle, new target name string to associate with the resource)**
+- **vRsrcPrintShort (pool handle or NULL)**, print a summary of usage statistics for the pool, or all pools if NULL
+- **vRsrcPrintLong (pool handle or NULL)**, same as PrintShort, but also prints a summary of each resource in the specified Pool(s))
 
 ### Simple Example:
-
 rsrcPoolP_t bufferpool = pxRsrcNewVarPool ("Buffers", MAXNUMBUFS); // create buffer pool
 
 bufferP_t buf = (bufferP_t) pxRsrcVarAlloc (bufferpool, "WIFI_XMITBUF", WIFI_XMIT_BUF_SIZE);  // allocate a buffer
@@ -40,13 +39,12 @@ vRsrcPrintShort (bufferpool);  // prints hiwater/lowater/active/free/numallocs f
 vRsrcPrintShort (NULL);   //prints the stats for ALL active pools
 
 vRsrcPrintLong (bufferpool); // prints pool info, and name tag and other info on each active resource
-
 vRsrcFree (buf);
-
-### Background
+`
+## Background
 This data structure allocator was written several years ago for a network project that used a lot of dynamically allocated objects.  It manages pools of dynamically-allocated structures of a given type, called (sorry, it’s an often-used word) “resources”, which we'll call "rsrc"s, and besides doing typical allocation/deallocation, it gathers basic statistics (active, free, total allocs, hiwater, lowater), allows pinning the max number of allocations from the pool that will succeed, and provides generic printing of pool and resource information.  I found it incredibly helpful during debugging, and to avoid and find memory leaks.  I used it for buffers, flows, state machines, message headers, basically anything that was being dynamically allocated.  I  logged the pool statistics for all pools on a heartbeat timer, and used that to track behavior under load and memory usage/leaks at idle.
 
-### Implementation
+## Implementation
 There are two data structures involved: a resource Pool struct, one per pool (there can be >1 pool with resources of the same type, there are no restrictions on what a pool contains), and a per-resource prefix struct that goes before the front of each structure.
 
 To use it, you first allocate a Pool.  The Pool data struct keeps track of things like the name of the resource pool, the current number of free and allocated resources, a list head for all the in-use resources, optional alloc/free/print helper routine pointers for that resource type, statistics of usage, and a freelist with the available free resources in the pool.  Pool structures are never freed (at present, though this may be changed), and to minimize heap fragmentation it's best to allocate them early in the run.  Once you have a pool defined, you can allocate resources from it and free them, and perform other useful operations like printing summaries of usage.
@@ -74,5 +72,5 @@ The Print helper routine is called when the built-in print routines are asked to
 ### Doubly-Linked Lists
 To replace my own list management routines, I adopted the Amazon IoT list routines (https://github.com/aws/amazon-freertos/blob/main/libraries/c_sdk/standard/common/include/private/iot_doubly_linked_list.h), because they use the same in-struct usage pattern and calling sequence as my own that were used in the original and can coexist with the FreeRTOS kernel list routines. These are well-documented, do not name-clash with the kernel list routines, and all operations are macros that expand inline, so it was very painless to integrate.  In-struct lists are also a much better match for the rsrc concept than pointer-based lists, and for lots of other things.
 
-### Notes
+## Notes
 I found this package to be incredibly useful in my RINA prototype.  I called the “brief” resource logging routine on a heartbeat timer, and used it to watch resource usage go up and down as tests ran.  If I saw that a pool was leaking resources (didn't return to 0-in-use when idle, or in-use growing unbounded), I would simply call the verbose printing routine and the culprit was often obvious from the names of the last places that touched the resource type.  You don’t have to change any files other than your own in order to add new resource types, and all the infrastructure “just works” automatically for new ones.  So it's easy to adopt code that currently uses malloc/free to use this instead.
