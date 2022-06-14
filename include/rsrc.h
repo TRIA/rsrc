@@ -23,11 +23,16 @@
 #define rsrcRES_FREE(res)	free(res)			// platform heap free routine
 #endif
 
+//#define rsrcTEST_FORCE_OOM 100				// (TESTING) <= this many mallocs will succeed, then NULL
+
 #define rsrcRES_ALIGN_TO	(sizeof (size_t))	// this address alignment forced for resources
 //define rsrcRES_ALIGN_TO 	(sizeof (double))	// Some CPUs want or require this alignment
 #define rsrcINIT_NUM_POOLS	5					// initial # of pool structs, increment is 1
 // given a resource pointer, back up to the rsrc struct in front of it
 #define RESADDR(p)			((struct rsrc *)((void *)p - offsetof(struct rsrc, ucPayload)))
+#define rsrcONE_RESOURCE	1					// used in argument lists for clarification
+#define rsrcNONE			0
+#define rsrcNO_MAX_LIMIT	0					// used as upper bound on pool size when unlimited
 
 struct rsrcPool;								// forward, for scoping in typedefs
 /**

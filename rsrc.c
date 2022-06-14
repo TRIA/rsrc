@@ -90,10 +90,11 @@ rsrcPoolP_t pxRsrcNewPool (const char *pcName, size_t xRsrcSize,
 {
 	rsrcPoolP_t pxPool;
 	
-	if (!pcName || (uiInitalloc|uiIncrement|uiMaxNumRes) > UINT16_MAX) {
+	if (!pcName || (uiInitalloc|uiIncrement|uiMaxNumRes) > UINT16_MAX
+		|| uiIncrement + uiInitalloc == 0) {
 		abort();
 	}
-	if (xRsrcSize == 0 && (uiInitalloc || uiIncrement != 1)) // variable pool specified wrong?
+	if (xRsrcSize == 0 && (uiInitalloc > 1 || uiIncrement > 1)) // variable pool specified wrong?
 		return (NULL);
 
 	if (rsrcPools.pxNext == NULL) {		// First pool to be added?  Initialize.
@@ -103,7 +104,7 @@ rsrcPoolP_t pxRsrcNewPool (const char *pcName, size_t xRsrcSize,
 		DEBUGPRINTF(LL_LOG_RSRC, "Initializing rsrcPools\n");
 		// initialize the Pool of Pools
 		success = prviRsrcInitPool (&xRsrcPoolPool, "Pools", sizeof (struct rsrcPool),
-									rsrcINIT_NUM_POOLS, 1, uiMaxNumRes);
+									rsrcINIT_NUM_POOLS, rsrcONE_RESOURCE, rsrcNO_MAX_LIMIT);
 		if (success <= 0) {
 			return (NULL);
 		}
@@ -127,7 +128,7 @@ rsrcPoolP_t pxRsrcNewPool (const char *pcName, size_t xRsrcSize,
  */
 rsrcPoolP_t pxRsrcNewVarPool (const char *pcName, unsigned int uiMaxNumRes)
 {
-	return (pxRsrcNewPool(pcName, 0, (size_t) 0, 1, uiMaxNumRes));
+	return (pxRsrcNewPool(pcName, (size_t) 0, rsrcNONE, rsrcONE_RESOURCE, uiMaxNumRes));
 }
 
 /** ----------------------------------------------------------------------------------
@@ -142,7 +143,7 @@ rsrcPoolP_t pxRsrcNewVarPool (const char *pcName, unsigned int uiMaxNumRes)
  */
 rsrcPoolP_t pxRsrcNewDynPool (const char *pcName, size_t xSizeEach, unsigned int uiMaxNumRes)
 {
-	return (pxRsrcNewPool(pcName, xSizeEach, 0, 1, uiMaxNumRes));
+	return (pxRsrcNewPool(pcName, xSizeEach, rsrcNONE, rsrcONE_RESOURCE, uiMaxNumRes));
 }
 /** ----------------------------------------------------------------------------------
  * @brief Initialize an existing pool and add it to the list of known ones.
@@ -335,6 +336,12 @@ static int prviRsrcAdd2Pool (rsrcPoolP_t pxPool, unsigned int uiCount, size_t xR
 						  pool->pcName, count * rsrcsize);
 	if (uiCount == 0)
 		return (0);
+#ifdef rsrcTEST_FORCE_OOM	// force out-of-memory condition after rsrcTEST_FORCE_OOM times
+	static int iMaxAllocs = 0;
+	if (iMaxAllocs >= rsrcTEST_FORCE_OOM)
+		return (-1);
+	iMaxAllocs++;
+#endif
 	space = rsrcRES_ALLOC(uiCount, xResSize);
 	if (!space) {
 		prviRsrcOOM(pxPool, uiCount);
@@ -403,7 +410,7 @@ void vRsrcDefaultPrintPoolHelper (rsrcPoolP_t pxOwningPool, void *pxPool2Print)
 {
 	rsrcPoolP_t pxPool = (rsrcPoolP_t) pxPool2Print;
 	
-	logPrintf(LL_LOG_RSRC, "Pool %s: %llu(Tot), %u(A), %u(AHi), %u(F), %u(FLo)\n",
+	logPrintf(LL_LOG_RSRC, "=== Pool %s: %llu(Tot), %u(A), %u(AHi), %u(F), %u(FLo)\n",
 			  pxPool->pcName, pxPool->ulTotalAllocs, pxPool->uiNumInUse,
 			  pxPool->uiHiWater, pxPool->uiNumFree, pxPool->uiLowWater);
 }
@@ -425,7 +432,6 @@ void prvvRsrcPrintCom (rsrcPoolP_t pxPool2Print, int iPrintRsrcs)
 		rsrcPoolP_t pxPool = (rsrcPoolP_t)pxPoolWalker;
 		if (pxPool2Print && pxPool2Print != pxPool) // ignore uninteresting pools
 			continue;
-		logPrintf(LL_LOG_RSRC, "=== "); // get a timestamp, make it stand out in the log
 		DEBUGPRINTF(LL_LOG_RSRC, "%s%s: %llu(Tot), %u(A), %u(AHi), %u(F), %u(FLo)\n",
 				  pcSeparator, pxPool->pcName, pxPool->ulTotalAllocs,
 				  pxPool->uiNumInUse, pxPool->uiHiWater, pxPool->uiNumFree, pxPool->uiLowWater);

@@ -9,7 +9,16 @@
 #include <assert.h>
 #include "rsrc.h"
 
-rsrcPoolP_t p1, p2, p3, p4;
+#define TEST_SUCCEEDED -1
+#define TEST_FAILED 1
+#define TEST_NOT_RUN 0
+
+//#define rsrcDOUBLE_FREE							// if defined, test will try a double-tree to see if it aborts
+
+/*
+ * Variables are globals so that the debugger can see them.
+ */
+rsrcPoolP_t p1, p2, p3, p4, p5;
 
 typedef void * RS;
 
@@ -19,90 +28,214 @@ RS r3, r4, r6, r7, r8, r9, r10;
 
 void OOMstub(rsrcPoolP_t pool, int amount)
 {
-	printf ("User-suppied out-of-memory function was called.  Returning...\n");
+	printf ("User-suppied out-of-memory function was called.  Returning to continue...\n");
 	return; // any return at all says to just continue instead of abort
 }
 
-int classID_RFU = 0;
-
-int main(int argc, const char * argv[]) {
-	p1 = pxRsrcNewPool ("bytepool", 1, 1, 1, 0); // one byte per alloc, 1 init, 1 inc
-	assert(p1);
-	p2 = pxRsrcNewPool ("longpool", 8, 0, 100, 0); // 8 bytes per, 0 init, 100 inc
-	assert(p2);
-	p3 = pxRsrcNewVarPool("varpool", 50);
+int test_varpool(void)
+{
+	const int bigsize = 10000;
+	
+	// create a Var pool, allocate a few variable-sized resources, trying one too many
+	p3 = pxRsrcNewVarPool("varpool", 2);
 	assert(p3);
-	
-	printf ("\nShort p1 alone (no allocations done yet):\n");
-	vRsrcPrintShort (p1);
-	printf ("\nShort all p*:\n");
-	vRsrcPrintShort (NULL);
-	
-	printf ("\nLong all p* (no allocations):\n");
-	vRsrcPrintLong(NULL);
-	
-	vRsrcSetPrintHelper (p1, vRsrcPrintResInHexHelper);
-	vRsrcSetAllocHelper (p1, vRsrcSetResToOnesHelper);
-	printf ("Helper vRsrcPrintResInHexHelper and vRsrcSetResToOnesHelper set for p1, now allocating r1 and r2 in p1\n");
-	r1 = pxRsrcAlloc (p1, "first");
-	vRsrcPrintResource ("r1: ", r1);
-	r2 = pxRsrcAlloc (p1, "second");
-	vRsrcPrintResource ("r2: ", r2);
-	printf ("\np1 long, after 2 allocations:\n");
-	vRsrcPrintLong(p1);
-	
-	printf ("\nallocating 2 in p2\n");
-	r3 = pxRsrcAlloc (p2, "firstp2");
-	vRsrcPrintResource ("this is r3", r3);
-	r4 = pxRsrcAlloc (p2, "secondp2");
-	vRsrcPrintResource ("this is r4, secondp2", r4);
-	printf ("\neverything long, after 2 allocations in p2:\n");
-	vRsrcPrintLong (NULL);
-	
-	vRsrcSetAllocHelper(p3, vRsrcSetResToOnesHelper);
-	r5 = pxRsrcVarAlloc(p3, "firstp3", 10000);
-	vRsrcPrintResource("variable resource p3", r5);
+	r5 = pxRsrcVarAlloc(p3, "firstp3", bigsize);
+	assert(r5);
 	r6 = pxRsrcVarAlloc(p3, "secondp3", 1024);
-	for (int i = 0; i < 10000; i++) // try to fail...
+	assert(r6);
+	if (p3->uiNumInUse != 2 || p3->uxSizeEach != 0 || p3->uiNumFree)
+		return TEST_FAILED;
+	for (int i = 0; i < bigsize; i++) // try to touch it all...
 		r5[i] = 0xef;
-	vRsrcSetPrintHelper(p3, vRsrcPrintResInHexHelper);
-	
-	printf("About to free r1, r2. Clearing eRsrcClearResOnAlloc\n");
-	eRsrcClearResOnAlloc = rsrcNOCLEAR;
-	vRsrcFree(r1);
-	vRsrcSetFreeHelper (p1, vRsrcSetResToZerosHelper);
-	vRsrcFree(r2);
-	printf ("r1's free helper was unmodified, but before freeing r2, free helper was SetToZeroes.\n");
-	printf ("We now use-after-free to check the residue in r1 and r2:\n");
-	printf ("r1[0] = 0x%x, r2[0] = 0x%x\n", r1[0], r2[0]);
-	vRsrcPrintResource("r3, about to free r3\n", r3);
-	vRsrcFree(r3);
-	vRsrcRenameRsrc (r4, "renamed r4");
-
-	
-	printf ("\nAfter freeing r1, r2, r3, and renaming r4, allocating r5, everything long:\n");
-	vRsrcPrintLong (NULL);
+	r7 = pxRsrcVarAlloc(p3, "too many", 1000);  // this should not succeeed
+	if (p3->uiNumInUse > 2 || r7) {
+		return TEST_FAILED;
+	}
 	vRsrcFree (r5);
+	vRsrcFree (r6);
+	return (TEST_SUCCEEDED);  // Failure is a memory fault on any of the above
+}
+
+int test_stats (void)
+{
+	const int poolsize = 100, repeats = 3;
 	
-#ifdef rsrcTEST_OOM
-	printf ("Compiled with rsrcTEST_OOM defined, so we'll try to run out of memory:\n");
-	vRsrcOOMfn = OOMstub;
+	// p2 is a static pool with enough in it to be interesting
+	p2 = pxRsrcNewPool ("longpool", 8, 0, poolsize, 0); // static pool: 8 bytes per, 0 init, 100 inc
+	assert(p2);
+
+	if (p2->uiNumInUse || p2->uiNumFree || p2->ulTotalAllocs || p2->uiHiWater || p2->uiLowWater)
+		return TEST_FAILED;
 	
-	vRsrcFree(r4); // empty out p2 so we know the count accurately when it dies
-	for (int i = 0; ; i++) {
-		void *ignored = pxRsrcAlloc(p2, "main");
+	for (int i = 0; i < repeats; i++) {
+		void *results[poolsize/2];
 		
-		if (!ignored) {
-			printf ("Got a NULL back after %d allocations\n", i);
-			break;
+		for (int j = 0; j < poolsize/2; j++) {
+			results[j] = pxRsrcAlloc(p2, "loop poolsize/2");
+			assert(results[j]);
+			// have we seen it before?
+			for (int k = 0; k < j; k++) {
+				if (results[k] == results[j])
+					return TEST_FAILED;
+			}
+		}
+		for (int j = 0; j < poolsize/2; j++)  {
+			vRsrcFree(results[j]);
 		}
 	}
-	vRsrcPrintShort(p2);
-	// now, let's go out with a bang
-	printf ("That worked.  Now attempting double-free on r1.  This should abort:\n");
+	if (p2->uiNumFree != poolsize
+		|| p2->uiNumInUse != 0
+		|| p2->ulTotalAllocs != repeats * poolsize/2
+		|| p2->uiLowWater != poolsize/2
+		|| p2->uiHiWater != poolsize/2) {
+		return TEST_FAILED;
+	}
+	return TEST_SUCCEEDED;
+}
+
+// Set these to 0 then "print" to verify that they are called the right number of times
+int prints = 0;
+rsrcPoolP_t pool2Expect = NULL;
+// set these as helpers to NOT print, but just to see if you get the expected calls
+void fakePoolPrint (rsrcPoolP_t pool, void *res)
+{
+	prints++;
+}
+
+extern struct rsrcPool xRsrcPoolPool;  // not advertised, but we know his name...
+int test_print (void)
+{
+	rsrcPrintHelper_t *ph = xRsrcPoolPool.pxPrintHelper;  // save
+	
+	// does not check for correct printing, just correct nubmer of calls
+	p5 = pxRsrcNewPool("PrintTest", 32, 2, 0, 0); // two 32-byte resources
+	assert(p5);
+	r5 = pxRsrcAlloc(p5, "r5 in p5");
+	assert (r5);
+	
+	// Set up print helper for Pools and for PrintTest to fakePoolPrint
+	vRsrcSetPrintHelper(p5, fakePoolPrint);
+	vRsrcSetPrintHelper(&xRsrcPoolPool, fakePoolPrint);
+	// print a known number of things, see if they get counted
+	prints = 0;
+	vRsrcPrintShort(p5); // prints should now be 1 for PrintTest pool
+	vRsrcPrintLong(p5); // prints should pick up two more - PrintTest and r5
+	// restore main resource pool print routine in case we need it later
+	vRsrcSetPrintHelper(&xRsrcPoolPool, ph);
+	
+	if (prints != 3)
+		return TEST_FAILED;
+	vRsrcFree(r5);
+	return TEST_SUCCEEDED;
+}
+
+int test_helpers (void)
+{
+	enum rsrcClearOnAllocSetting_t t = eRsrcClearResOnAlloc; // save so we can restore
+	
+	eRsrcClearResOnAlloc = rsrcNOCLEAR;	// turn off meddling behavior
+	// create a static pool, set the helpers to set them to 1's, 0's (opposite of eRsrcClearResOnAlloc)
+	p4 = pxRsrcNewPool ("helperpool", 256, 2, 0, 0);
+	assert(p4);
+	vRsrcSetAllocHelper(p4, vRsrcSetResToOnesHelper);
+	vRsrcSetFreeHelper(p4, vRsrcSetResToZerosHelper);
+	
+	// allocate a resource, check it for 1's.  Free it.  Check after free to see if it's zeroes.
+	r5 = pxRsrcAlloc(p4, "helpertest");
+	assert(r5);
+	if (r5[0] != 0xff || r5[255] != 0xff)
+		return TEST_FAILED + 1;
+	vRsrcFree(r5);
+	eRsrcClearResOnAlloc = t; // reset global
+	
+	// cheat -- peek into the freed resource's body and see if it got cleared
+	if (r5[0] !=  0 || r5[255] != 0)
+		return TEST_FAILED + 1;
+	return TEST_SUCCEEDED;
+}
+
+int test_dynpool(void)
+{
+	p1 = pxRsrcNewPool ("bytepool", 1, 1, 1, 0); // dynamic pool: one byte per alloc, 1 init, 1 inc
+	assert(p1);
+	r1 = pxRsrcAlloc (p1, "r1 in bytepool");
+	assert (r1);
+	r2 = pxRsrcAlloc(p1, "r2 in bytepool");
+	if (p1->uiNumFree || p1->uiNumInUse != 2)
+		return TEST_FAILED;
 	vRsrcFree(r1);
-	printf ("TEST FAILED. This should not be printed, we should have aborted before now\n");
-#endif /* rsrcTEST_OOM */
+	if (p1->uiNumFree || p1->uiNumInUse != 1)
+		return TEST_FAILED;
+	vRsrcFree(r2);
+	if (p1->uiNumFree || p1->uiNumInUse != 0)
+		return TEST_FAILED;
+	return TEST_SUCCEEDED;
+}
+
+int test_oom (rsrcPoolP_t pPool)
+{
+#ifdef rsrcTEST_FORCE_OOM
+	printf ("  Compiled with rsrcTEST_FORCE_OOM defined, so we'll try to run out of memory:\n");
+	vRsrcOOMfn = OOMstub;
+	
+	// usually, rsrcTEST_OOM is a modest number.  We should fail before we hit it.
+	for (int i = 0; i < rsrcTEST_FORCE_OOM + 1; i++) {
+		void *ignored = pxRsrcAlloc(pPool, "main");
+		
+		if (!ignored) {
+			printf ("  Got a NULL back after %d allocations\n", i);
+			goto success;
+		}
+	}
+	return (TEST_FAILED);
+success:
+	return (TEST_SUCCEEDED);
+#else
+	return (TEST_NOT_RUN);
+#endif	/* rsrcTEST_FORCE_OOM */
+}
+
+int test_doublefree (void *res)
+{
+#ifdef rsrcDOUBLE_FREE
+	// now, let's go out with a bang (eventually, this will catch the signals so it can return)
+	printf ("Attempting double-free on res.  If this results in abort(), the test PASSED.\n");
+	fflush(stdout); fflush(stderr);
+	vRsrcFree(res);
+	vRsrcFree(res);
+	fprintf (stderr, "DOUBLE-FREE TEST FAILED. This should not be printed, we should have aborted before now\n");
+	return TEST_FAILED;
+#else
+	return (TEST_NOT_RUN);
+#endif /* rsrcDOUBLE_FREE */
+}
+
+void runtest(const char *testname, int result)
+{
+	if (result < 0) {
+		fprintf (stdout, "Test %s PASSED\n", testname);
+	}
+	else {
+		if (result == 0)
+			fprintf (stdout, "Test %s was NOT RUN\n", testname);
+		else
+			fprintf (stderr, "Test %s FAILED (%d)\n", testname, result);
+	}
+}
+
+int main(int argc, const char * argv[])
+{
+	runtest ("Variable Pool allocation", test_varpool());  // generates p3
+	runtest ("Dynamic Pool allocation", test_dynpool());  // generates p1
+	runtest ("Pool stats", test_stats());  // generates static pool p2
+	runtest ("Printing test", test_print());  // generates p5
+	runtest ("Helper alloc/free", test_helpers());  // generates p4
+	
+	// The following two tests require special compilations of the program, run manually
+	r1 = pxRsrcAlloc(p2, "r1 in p2"); // allocate BEFORE we OOM, just in case we run that
+	assert(r1);
+	runtest ("OOM test", test_oom(p1));
+	runtest ("Double free (abort == SUCCESS)", test_doublefree(r1)); // rsrc must be from static pool
 
 	printf ("Finished normally\n");
 	return 0;
