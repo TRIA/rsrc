@@ -410,7 +410,7 @@ void vRsrcDefaultPrintPoolHelper (rsrcPoolP_t pxOwningPool, void *pxPool2Print)
 {
 	rsrcPoolP_t pxPool = (rsrcPoolP_t) pxPool2Print;
 	
-	logPrintf(LL_LOG_RSRC, "=== Pool %s: %llu(Tot), %u(A), %u(AHi), %u(F), %u(FLo)\n",
+	logPrintf(LL_LOG_RSRC, "=== Pool %s: %lu(Tot), %u(A), %u(AHi), %u(F), %u(FLo)\n",
 			  pxPool->pcName, pxPool->ulTotalAllocs, pxPool->uiNumInUse,
 			  pxPool->uiHiWater, pxPool->uiNumFree, pxPool->uiLowWater);
 }
