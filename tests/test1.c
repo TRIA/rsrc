@@ -175,7 +175,7 @@ int test_dynpool(void)
 int test_oom (rsrcPoolP_t pPool)
 {
 #ifdef rsrcTEST_FORCE_OOM
-	printf ("  Compiled with rsrcTEST_FORCE_OOM defined, so we'll try to run out of memory:\n");
+//	printf ("  Compiled with rsrcTEST_FORCE_OOM defined, so we'll try to run out of memory:\n");
 	vRsrcOOMfn = OOMstub;
 	
 	// usually, rsrcTEST_OOM is a modest number.  We should fail before we hit it.
@@ -183,7 +183,7 @@ int test_oom (rsrcPoolP_t pPool)
 		void *ignored = pxRsrcAlloc(pPool, "main");
 		
 		if (!ignored) {
-			printf ("  Got a NULL back after %d allocations\n", i);
+//			printf ("  Got a NULL back after %d allocations\n", i);
 			goto success;
 		}
 	}
@@ -225,6 +225,7 @@ void runtest(const char *testname, int result)
 
 int main(int argc, const char * argv[])
 {
+#ifndef rsrcTEST_FORCE_OOM
 	runtest ("Variable Pool allocation", test_varpool());  // generates p3
 	runtest ("Dynamic Pool allocation", test_dynpool());  // generates p1
 	runtest ("Pool stats", test_stats());  // generates static pool p2
@@ -234,9 +235,12 @@ int main(int argc, const char * argv[])
 	// The following two tests require special compilations of the program, run manually
 	r1 = pxRsrcAlloc(p2, "r1 in p2"); // allocate BEFORE we OOM, just in case we run that
 	assert(r1);
+#else
+	p1 = pxRsrcNewPool ("bytepool", 1, 1, 1, 0); // dynamic pool: one byte per alloc, 1 init, 1 inc
 	runtest ("OOM test", test_oom(p1));
+#endif
 	runtest ("Double free (abort == SUCCESS)", test_doublefree(r1)); // rsrc must be from static pool
 
-	printf ("Finished normally\n");
+	printf ("----> '%s' finished normally\n", argv[0]);
 	return 0;
 }
