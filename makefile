@@ -3,7 +3,7 @@ COREFILES:=rsrc.c
 TESTS_C:=$(wildcard tests/*.c)
 SOURCES:=$(TESTS_C) rsrc.c
 TESTS:=$(TESTS_C:.c=)
-CFLAGS:= -I include
+CFLAGS:= -I include -std=c99
 
 all: maketests runtests
 
