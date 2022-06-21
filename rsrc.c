@@ -11,14 +11,15 @@
 #include <stddef.h>				// offsetof
 #include <string.h>				// memset
 #include "rsrc.h"
-#include "esplog.h"				// printing
+//#include "logging.h"			// logPrintf, DEBUGPRINTF
+#include <stdio.h>
 
 /**
  * @brief Platform debug/print routines. DEBUGPRINTF normally nulled out.  logPrintf normally prints to stderr or equivalent.
  */
-//#define DEBUGPRINTF(f,x...)			ESP_LOGI(f,x...)
+//#define DEBUGPRINTF(f,x...)		printf(x)
 #define DEBUGPRINTF(f,x...)
-#define logPrintf(f,x...)			ESP_LOGI(f,x...)
+#define logPrintf(f,x...)		printf(x)
 #define LL_LOG_RSRC				"rsrc"			// For FreeRTOS: name of file
 
 #define RESFREE_MAGIC	((void *) 0xdeadbeef)	// impossible value (detect double-free)

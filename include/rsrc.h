@@ -9,19 +9,18 @@
 #ifndef _RSRC_H_
 #define _RSRC_H_
 
-#include <stdint.h>
 #include "iot_doubly_linked_list.h"				// Amazon FreeRTOS library
 
 /**
  * @brief Heap allocation routines for the target platform.  calloc/malloc/free semantics and calling sequence
  */
 #ifndef rsrcRES_ALLOC
-#define rsrcRES_ALLOC(num,size) pvPortMalloc((num)*(size)) // add space to a pool
+#define rsrcRES_ALLOC(num,size) malloc((num)*(size)) // add space to a pool
 //#define rsrcRES_ALLOC(num,size)	calloc(num,size) // add cleared space to a pool
 #endif
 
 #ifndef rsrcRES_FREE
-#define rsrcRES_FREE(res)	vPortFree(res)			// platform heap free routine
+#define rsrcRES_FREE(res)	free(res)			// platform heap free routine
 #endif
 
 //#define rsrcTEST_FORCE_OOM 100				// (TESTING) <= this many mallocs will succeed, then NULL
