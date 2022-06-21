@@ -11,19 +11,19 @@
 #include <stddef.h>				// offsetof
 #include <string.h>				// memset
 #include "rsrc.h"
+#include "freertos/FreeRTOS.h"
 #include "esp_log.h"				// printing
 
 /**
  * @brief Platform debug/print routines. DEBUGPRINTF normally nulled out.  logPrintf normally prints to stderr or equivalent.
  */
-//#define DEBUGPRINTF(f,x...)			ESP_LOGI(f,x...)
+//#define DEBUGPRINTF					ESP_LOGI
 #define DEBUGPRINTF(f,x...)
-#define logPrintf(f,x...)			ESP_LOGI(f,x...)
-#define LL_LOG_RSRC				"rsrc"			// For FreeRTOS: name of file
+#define logPrintf						ESP_LOGI
 
 #define RESFREE_MAGIC	((void *) 0xdeadbeef)	// impossible value (detect double-free)
 
-static const char* TAG = LL_LOG_RSRC;
+static const char* TAG = "rsrc";
 
 /** ----------------------------------------------------------------------------------
  * @brief rsrcPools This is the list head for the list of all rsrcPool structs, and the initial pool.
@@ -102,7 +102,7 @@ rsrcPoolP_t pxRsrcNewPool (const char *pcName, size_t xRsrcSize,
 		int success;
 		
 		listINIT_HEAD(&rsrcPools);
-		DEBUGPRINTF(LL_LOG_RSRC, "Initializing rsrcPools\n");
+		DEBUGPRINTF(TAG, "Initializing rsrcPools\n");
 		// initialize the Pool of Pools
 		success = prviRsrcInitPool (&xRsrcPoolPool, "Pools", sizeof (struct rsrcPool),
 									rsrcINIT_NUM_POOLS, rsrcONE_RESOURCE, rsrcNO_MAX_LIMIT);
@@ -175,7 +175,7 @@ static int prviRsrcInitPool (rsrcPoolP_t pxPool, const char *pcName, size_t xRsr
 	pxPool->uiMaxNumRes = uiMaxNumRes;
 	pxPool->uiLowWater = uiInitAlloc;
 	pxPool->uiHiWater = 0;
-	DEBUGPRINTF(LL_LOG_RSRC, "New pool '%s' added, sizeeach %lu, #init %d, #inc %d, at 0x%p\n",
+	DEBUGPRINTF(TAG, "New pool '%s' added, sizeeach %lu, #init %d, #inc %d, at 0x%p\n",
 				pool->pcName, pool->uxSizeEach, initalloc, increment, pool);
 	if (uiInitAlloc) {
 		return (prviRsrcAdd2Pool (pxPool, uiInitAlloc, privuxRsrcAlignUp(sizeof(struct rsrc)+xRsrcSize)));
@@ -299,9 +299,9 @@ void vRsrcFree (void *pvResPayload)
 	struct rsrcPool *pxPool = pxRsrc->pxPool;
 	
 	if (pxRsrc->pvFlag == RESFREE_MAGIC) {
-		logPrintf(LL_LOG_RSRC, "freeRsrc: double-free attempt on object at %p, trying to print:\n",
+		logPrintf(TAG, "freeRsrc: double-free attempt on object at %p, trying to print:\n",
 				  pvResPayload);
-		logPrintf(LL_LOG_RSRC, "rsrc %p, rsrc->name '%s', rsrc->pool->name %s\n", pxRsrc,
+		logPrintf(TAG, "rsrc %p, rsrc->name '%s', rsrc->pool->name %s\n", pxRsrc,
 				  (pxRsrc->pcResName?pxRsrc->pcResName:"NULL"), (pxPool->pcName?pxPool->pcName:"NULL"));
 		// invoke the debugger here
 		abort();
@@ -310,7 +310,7 @@ void vRsrcFree (void *pvResPayload)
 	pxPool->uiNumInUse--;
 	if (pxPool->uiFreeOnFree) {
 		// there is no freelist for unknown-size resources, just return the resource via Free
-		DEBUGPRINTF(LL_LOG_RSRC, "Freeing resource @rsrc=%p\n", rsrc);
+		DEBUGPRINTF(TAG, "Freeing resource @rsrc=%p\n", rsrc);
 		if (pxPool->pxFreeHelper)
 			pxPool->pxFreeHelper (pxPool, &pxRsrc->ucPayload);
 		rsrcRES_FREE(pxRsrc);
@@ -333,7 +333,7 @@ static int prviRsrcAdd2Pool (rsrcPoolP_t pxPool, unsigned int uiCount, size_t xR
 {
 	void *space;
 	
-	DEBUGPRINTF(LL_LOG_RSRC, "Pool %s adding %ld bytes\n",
+	DEBUGPRINTF(TAG, "Pool %s adding %ld bytes\n",
 						  pool->pcName, count * rsrcsize);
 	if (uiCount == 0)
 		return (0);
@@ -395,7 +395,7 @@ void vRsrcPrintResource (const char *pcExplanation, void *pvRsrcpayload)
 		punctuation = ':';
 	else
 		punctuation = '.';
-	logPrintf (LL_LOG_RSRC, "%s in pool %s: '%s'(%p) @%p%c\n", pcExplanation, pxPool->pcName,
+	logPrintf (TAG, "%s in pool %s: '%s'(%p) @%p%c\n", pcExplanation, pxPool->pcName,
 			   pxRsrc->pcResName, pxRsrc, pvRsrcpayload, punctuation);
 	if (pxPool->pxPrintHelper)
 		pxPool->pxPrintHelper (pxPool, pvRsrcpayload);
@@ -411,7 +411,7 @@ void vRsrcDefaultPrintPoolHelper (rsrcPoolP_t pxOwningPool, void *pxPool2Print)
 {
 	rsrcPoolP_t pxPool = (rsrcPoolP_t) pxPool2Print;
 	
-	logPrintf(LL_LOG_RSRC, "=== Pool %s: %lu(Tot), %u(A), %u(AHi), %u(F), %u(FLo)\n",
+	logPrintf(TAG, "=== Pool %s: %llu(Tot), %u(A), %u(AHi), %u(F), %u(FLo)\n",
 			  pxPool->pcName, pxPool->ulTotalAllocs, pxPool->uiNumInUse,
 			  pxPool->uiHiWater, pxPool->uiNumFree, pxPool->uiLowWater);
 }
@@ -427,14 +427,13 @@ void vRsrcDefaultPrintPoolHelper (rsrcPoolP_t pxOwningPool, void *pxPool2Print)
 void prvvRsrcPrintCom (rsrcPoolP_t pxPool2Print, int iPrintRsrcs)
 {
 	Link_t *pxPoolWalker;	// walks through all the pools.
-	const char *pcSeparator = "";
 	
 	listFOR_EACH (pxPoolWalker, (&rsrcPools)) {
 		rsrcPoolP_t pxPool = (rsrcPoolP_t)pxPoolWalker;
 		if (pxPool2Print && pxPool2Print != pxPool) // ignore uninteresting pools
 			continue;
-		DEBUGPRINTF(LL_LOG_RSRC, "%s%s: %llu(Tot), %u(A), %u(AHi), %u(F), %u(FLo)\n",
-				  pcSeparator, pxPool->pcName, pxPool->ulTotalAllocs,
+		DEBUGPRINTF(TAG, "%s: %llu(Tot), %u(A), %u(AHi), %u(F), %u(FLo)\n",
+				  pxPool->pcName, pxPool->ulTotalAllocs,
 				  pxPool->uiNumInUse, pxPool->uiHiWater, pxPool->uiNumFree, pxPool->uiLowWater);
 		if (xRsrcPoolPool.pxPrintHelper) {
 			xRsrcPoolPool.pxPrintHelper (&xRsrcPoolPool, pxPool);
@@ -449,19 +448,15 @@ void prvvRsrcPrintCom (rsrcPoolP_t pxPool2Print, int iPrintRsrcs)
 				if (pxPool->pxPrintHelper)
 					pxPool->pxPrintHelper (pxPool, &r->ucPayload);
 				else
-					logPrintf(LL_LOG_RSRC, "%sres '%s' at %p (%p)",
+					logPrintf(TAG, "%sres '%s' at %p (%p)",
 							  pcComma, r->pcResName, &r->ucPayload, r);
 				pcComma = ", ";
 			}
 			if (!pxPool->pxPrintHelper)	// avoid annoying run-on lines
-				logPrintf(LL_LOG_RSRC, ".\n");
+				logPrintf(TAG, ".\n");
 		}
-		if (iPrintRsrcs)
-			pcSeparator = "\n=== ";
-		else
-			pcSeparator = "; ";
 	}
-	// logPrintf(LL_LOG_RSRC, "\n");
+	// logPrintf(TAG, "\n");
 }
 
 /** ----------------------------------------------------------------------------------
@@ -499,7 +494,7 @@ static int prviRsrcOOM (rsrcPoolP_t pxPool, unsigned int uiRequest)
 		(*vRsrcOOMfn)(pxPool, uiRequest);
 		return (1);
 	}
-	logPrintf (LL_LOG_RSRC, "Out of Memory!, pool->name %s, requested %u\n",
+	logPrintf (TAG, "Out of Memory!, pool->name %s, requested %u\n",
 			   ((struct rsrcPool *)pxPool)->pcName, uiRequest);
 	abort();
 }
@@ -543,17 +538,17 @@ void vRsrcPrintResInHexHelper (rsrcPoolP_t pxPool, void *pvRsrcPayload)
 	uint32_t *pi;
 	const unsigned int prvIntsToPrint = 32;	// adjust to your liking
 	
-	logPrintf(LL_LOG_RSRC, "-----%16p: Prev %p Next %p pool '%s', name '%s'\n",
+	logPrintf(TAG, "-----%16p: Prev %p Next %p pool '%s', name '%s'\n",
 			  pxRsrc, pxRsrc->xLinks.pxPrev, pxRsrc->xLinks.pxNext, pxPool->pcName, pxRsrc->pcResName);
 	
 	long lNumIntsToPrint = (pxPool->uxSizeEach + (sizeof (uint32_t)-1)) / (sizeof (uint32_t));
 	// for benefit of variable allocations, print a line or so
 	if (lNumIntsToPrint == 0) {
-		logPrintf(LL_LOG_RSRC, "    PrintInHex: variable resource, using %d\n", prvIntsToPrint);
+		logPrintf(TAG, "    PrintInHex: variable resource, using %d\n", prvIntsToPrint);
 		lNumIntsToPrint = prvIntsToPrint;
 	}
 	if (lNumIntsToPrint > prvIntsToPrint) {
-		logPrintf(LL_LOG_RSRC, "     PrintInHex: resource size > %u ints (%lu), using %u\n", prvIntsToPrint, lNumIntsToPrint, prvIntsToPrint);
+		logPrintf(TAG, "     PrintInHex: resource size > %u ints (%lu), using %u\n", prvIntsToPrint, lNumIntsToPrint, prvIntsToPrint);
 		lNumIntsToPrint = prvIntsToPrint;
 	}
 	
@@ -562,20 +557,20 @@ void vRsrcPrintResInHexHelper (rsrcPoolP_t pxPool, void *pvRsrcPayload)
 		char c;
 		int numtoprint = lNumIntsToPrint > iIntsPerLine ? iIntsPerLine : (int)lNumIntsToPrint;
 		
-		logPrintf(LL_LOG_RSRC, "%16p: ", pi);
+		logPrintf(TAG, "%16p: ", pi);
 		for (int i = 0; i < numtoprint; i++) {
-			logPrintf (LL_LOG_RSRC, "%08x ", pi[i]);
+			logPrintf (TAG, "%08x ", pi[i]);
 		}
 		for (int i = 0; i < (numtoprint*(sizeof (int))); i++) {
 			c = (*pi >> (24 - i*8)) & 0xff;
 			if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
 				(c >= '0' && c <= '9')) {
-				logPrintf(LL_LOG_RSRC, "%c", c);
+				logPrintf(TAG, "%c", c);
 			} else {
-				logPrintf(LL_LOG_RSRC, ".");
+				logPrintf(TAG, ".");
 			}
 		}
-		logPrintf(LL_LOG_RSRC, "\n");
+		logPrintf(TAG, "\n");
 	}
 }
 
