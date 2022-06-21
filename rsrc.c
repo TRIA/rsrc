@@ -11,7 +11,7 @@
 #include <stddef.h>				// offsetof
 #include <string.h>				// memset
 #include "rsrc.h"
-#include "esplog.h"				// printing
+#include "esp_log.h"				// printing
 
 /**
  * @brief Platform debug/print routines. DEBUGPRINTF normally nulled out.  logPrintf normally prints to stderr or equivalent.
@@ -22,6 +22,8 @@
 #define LL_LOG_RSRC				"rsrc"			// For FreeRTOS: name of file
 
 #define RESFREE_MAGIC	((void *) 0xdeadbeef)	// impossible value (detect double-free)
+
+static const char* TAG = LL_LOG_RSRC;
 
 /** ----------------------------------------------------------------------------------
  * @brief rsrcPools This is the list head for the list of all rsrcPool structs, and the initial pool.
