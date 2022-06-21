@@ -29,3 +29,9 @@ tests/test1_oom: tests/test1.c $(COREFILES) $(INCLUDES) makefile
 
 clean:
 	-rm $(TESTS) tests/test1_oom tests/test1_dubfree
+
+publish2rinasense:
+	cp rsrc.c ../rinasense/components/Common
+	cp include/rsrc.h ../rinasense/components/Common/include
+	cp include/iot_doubly_linked_list.h ../rinasense/components/Common/include
+#	cp tests/test1.c ../rinasense/components/Common
