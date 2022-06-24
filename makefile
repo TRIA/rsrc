@@ -1,6 +1,7 @@
 INCLUDES:=include/rsrc.h include/iot_doubly_linked_list.h
 COREFILES:=rsrc.c
-TESTS_C:=$(wildcard tests/*.c)
+#TESTS_C:=$(wildcard tests/*.c)
+TESTS_C:=tests/test1.c
 SOURCES:=$(TESTS_C) rsrc.c
 TESTS:=$(TESTS_C:.c=)
 CFLAGS:= -I include -std=c99
@@ -31,7 +32,7 @@ clean:
 	-rm $(TESTS) tests/test1_oom tests/test1_dubfree
 
 publish2rinasense:
-	cp rsrc.c ../rinasense/components/Common
-	cp include/rsrc.h ../rinasense/components/Common/include
-	cp include/iot_doubly_linked_list.h ../rinasense/components/Common/include
-#	cp tests/test1.c ../rinasense/components/Common
+	cp rsrc.c ../RINA_sensor/RINA_sensor/components/Common
+	cp include/rsrc.h ../RINA_sensor/RINA_sensor/components/Common/include
+	cp include/iot_doubly_linked_list.h ../RINA_sensor/RINA_sensor/components/Common/include
+#	cp tests/test1.c ../RINA_sensor/RINA_sensor/components/Common
